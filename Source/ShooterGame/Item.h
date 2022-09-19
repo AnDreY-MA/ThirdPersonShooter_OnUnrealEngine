@@ -96,6 +96,7 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item", meta=(AllowPrivateAccess = "true"))
 	EItemState ItemState;
 
+
 public:
 	
 	FORCEINLINE UWidgetComponent* GetPickupWidget() const { return PickupWidget; }

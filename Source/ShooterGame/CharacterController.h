@@ -1,10 +1,18 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ // Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Weapon.h"
 #include "GameFramework/Character.h"
 #include "CharacterController.generated.h"
+
+UENUM(BlueprintType)
+enum ECombatState
+{
+	ECS_Unoccupied UMETA(DisplayName = "Unoccupied"),
+	ECS_Reloaded UMETA(DisplayName = "Reloaded")
+};
 
 UCLASS()
 class SHOOTERGAME_API ACharacterController : public ACharacter
@@ -57,7 +65,19 @@ protected:
 
 	void DropButtomPressed();
 	void DropButtomRealesed();
-	
+
+	void SwapWeapon(AWeapon* WeaponToSwap);
+
+	void InitializeAmmoMap();
+
+	bool WeaponHasAmmo();
+
+	void FireButtonPressed();
+
+	void ReloadButtonPressed();
+	void ReloadWeapon();
+
+	bool CheckAmmo();
 	
 public:	
 	// Called every frame
@@ -121,14 +141,17 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Combat, meta = (AllowPrivateAccess = "true"))
 	class UAnimMontage* ShootMontage;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	UAnimMontage* ReloadMontage;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
 	bool bAiming;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Combat, meta = (AllowPrivateAccess = "true"))
 	float ZoomInterSpeed;
     
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Crosshairs, meta = (AllowPrivateAccess = "true"))
-    float CrosshairSpreadMultiplier;
+    	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Crosshairs, meta = (AllowPrivateAccess = "true"))
+    	float CrosshairSpreadMultiplier;
     
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Crosshairs, meta = (AllowPrivateAccess = "true"))
 	float CrosshairVelocityFactor;
@@ -162,6 +185,21 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Crosshairs, meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<AWeapon> DefaultWeaponClass;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	AItem* TraceHitItem;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	TMap<EAmmoType, int32> AmmoMap;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	int32 Starting9mmAmmo;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	int32 StartingARAmmo;
+
+	UFUNCTION(BlueprintCallable)
+	void FinishReload();
 	
 public:
 	FORCEINLINE USpringArmComponent* GetCameraBoom() const { return CameraBoom; }

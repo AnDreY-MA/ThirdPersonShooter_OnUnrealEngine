@@ -45,7 +45,10 @@ ACharacterController::ACharacterController() :
 	ShootTimeDuration(0.05f),
 	bFiringBullet(false),
 	bShouldTraceForItems(false),
-	OverlappedItemCount(0)
+	OverlappedItemCount(0),
+	//Starting ammo amounts
+	Starting9mmAmmo(85),
+	StartingARAmmo(120)
 
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
@@ -84,6 +87,7 @@ void ACharacterController::BeginPlay()
 	}
 
 	EquipWeapon(SpawnDefaultWeapon());
+	InitializeAmmoMap();
 }
 
 // Called every frame
@@ -119,11 +123,13 @@ void ACharacterController::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 	PlayerInputComponent->BindAction("Aim", IE_Pressed, this, &ACharacterController::AimingButtonPressed);
 	PlayerInputComponent->BindAction("Aim", IE_Released, this, &ACharacterController::AimingButtonReleased);
 
-	PlayerInputComponent->BindAction("Attack", IE_Pressed, this, &ACharacterController::FireWeapon);
+	PlayerInputComponent->BindAction("Attack", IE_Pressed, this, &ACharacterController::FireButtonPressed);
 
 	PlayerInputComponent->BindAction("Drop", IE_Pressed, this, &ACharacterController::DropButtomPressed);
 	PlayerInputComponent->BindAction("Drop", IE_Released, this, &ACharacterController::DropButtomRealesed);
 
+	PlayerInputComponent->BindAction("Reload", IE_Pressed, this, &ACharacterController::ReloadButtonPressed);
+	
 }
 
 void ACharacterController::MoveForward(float Value)
@@ -155,17 +161,29 @@ void ACharacterController::LookRate(float Rate)
 
 }
 
+void ACharacterController::FireButtonPressed()
+{
+	if(WeaponHasAmmo() == true && EquippedWeapon != nullptr)
+	{
+		FireWeapon();
+	}
+	else if(WeaponHasAmmo() == false)
+	{
+		ReloadWeapon();
+	}
+}
+
 void ACharacterController::FireWeapon()
 {
 	if(FireSound)
 	{
 		UGameplayStatics::PlaySound2D(this, FireSound);
 	}
-	const USkeletalMeshSocket* BarrelSocket = GetMesh()->GetSocketByName("BarrelSocket");
+	const USkeletalMeshSocket* BarrelSocket = EquippedWeapon->GetItemMesh()->GetSocketByName("BarrelSocket");
 	
 	if(BarrelSocket)
 	{
-		const FTransform SocketTransform = BarrelSocket->GetSocketTransform(GetMesh());
+		const FTransform SocketTransform = BarrelSocket->GetSocketTransform(EquippedWeapon->GetItemMesh());
 		if(MuzzleFlash)
 		{
 			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), MuzzleFlash, SocketTransform);
@@ -200,6 +218,8 @@ void ACharacterController::FireWeapon()
 	}
 
 	StartCrosshairBulletFire();
+	
+	EquippedWeapon->DecrementAmmo();
 	
 }
 
@@ -454,21 +474,21 @@ void ACharacterController::TraceForItems()
 		TraceUnderCrosshair(ItemTraceResult, HitLocation);
 		if (ItemTraceResult.bBlockingHit)
 		{
-			AItem* HitItem = Cast<AItem>(ItemTraceResult.GetActor());
-			if(HitItem && HitItem->GetPickupWidget())
+			TraceHitItem = Cast<AItem>(ItemTraceResult.GetActor());
+			if(TraceHitItem && TraceHitItem->GetPickupWidget())
 			{
-				HitItem->GetPickupWidget()->SetVisibility(true);
+				TraceHitItem->GetPickupWidget()->SetVisibility(true);
 			}
 
 			if(TraceHitItemLastFrame)
 			{
-				if(HitItem != TraceHitItemLastFrame)
+				if(TraceHitItem != TraceHitItemLastFrame)
 				{
 					TraceHitItemLastFrame->GetPickupWidget()->SetVisibility(false);
 				}
 			}
 
-			TraceHitItemLastFrame = HitItem; 
+			TraceHitItemLastFrame = TraceHitItem; 
 		}
 	}
 	else if(TraceHitItemLastFrame)
@@ -511,12 +531,18 @@ void ACharacterController::DropWeapon()
 		EquippedWeapon->GetItemMesh()->DetachFromComponent(DetachmentTransformRules);
 
 		EquippedWeapon->SetItemState(EItemState::EIS_Falling);
+		EquippedWeapon->ThrowWeapon();
 	}
 }
 
 void ACharacterController::DropButtomPressed()
 {
-	DropWeapon();
+	if(TraceHitItem)
+	{
+		auto TraceHitWeapon = Cast<AWeapon>(TraceHitItem);
+		SwapWeapon(TraceHitWeapon);
+	}
+	
 }
 
 void ACharacterController::DropButtomRealesed()
@@ -524,5 +550,88 @@ void ACharacterController::DropButtomRealesed()
 	
 }
 
+void ACharacterController::SwapWeapon(AWeapon* WeaponToSwap)
+{
+	DropWeapon();
+	EquipWeapon(WeaponToSwap);
+	TraceHitItem = nullptr;
+	TraceHitItemLastFrame = nullptr;
+	
+}
 
+void ACharacterController::InitializeAmmoMap()
+{
+	AmmoMap.Add(EAmmoType::EAT_9mm, Starting9mmAmmo);
+	AmmoMap.Add(EAmmoType::EAT_AR, StartingARAmmo);
 
+}
+
+bool ACharacterController::WeaponHasAmmo()
+{
+	if(EquippedWeapon == nullptr) return false;
+
+	return EquippedWeapon->GetAmmo() > 0;
+}
+
+void ACharacterController::ReloadButtonPressed()
+{
+	ReloadWeapon();
+}
+
+void ACharacterController::ReloadWeapon()
+{
+	if (CheckAmmo())
+	{
+		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+
+		if (AnimInstance && ReloadMontage)
+		{
+			AnimInstance->Montage_Play(ReloadMontage);
+			AnimInstance->Montage_JumpToSection(EquippedWeapon->GetReloadMontageSection());
+			FinishReload();
+		}
+	}
+	
+}
+
+void ACharacterController::FinishReload()
+{
+	if(EquippedWeapon == nullptr) return;
+
+	const auto AmmoType = EquippedWeapon->GetAmmoType();
+	
+	if(AmmoMap.Contains(EquippedWeapon->GetAmmoType()))
+	{
+		int32 CarriedAmmo = AmmoMap[AmmoType];
+
+		const int32 MagEmptySpace = EquippedWeapon->GetMagazineCapacity() - EquippedWeapon->GetAmmo();
+
+		if(MagEmptySpace > CarriedAmmo)
+		{
+			EquippedWeapon->ReloadAmmo(CarriedAmmo);
+			CarriedAmmo = 0;
+			AmmoMap.Add(AmmoType, CarriedAmmo);
+		}
+		else
+		{
+			EquippedWeapon->ReloadAmmo(MagEmptySpace);
+			CarriedAmmo -= MagEmptySpace;
+			AmmoMap.Add(AmmoType, CarriedAmmo);
+		}
+	}
+}
+
+bool ACharacterController::CheckAmmo()
+{
+	if (EquippedWeapon == nullptr) return false;
+
+	auto AmmoType = EquippedWeapon->GetAmmoType();
+
+	if (AmmoMap.Contains(AmmoType))
+	{
+		return AmmoMap[AmmoType] > 0;
+	}
+
+	return false;
+
+}

@@ -17,6 +17,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void UpdateAnimationProperties(float DeltaTime);
 
+	UFUNCTION(BlueprintCallable)
+	FRotator GetOffsetAxis();
+
 	virtual  void NativeInitializeAnimation() override;
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"));
@@ -39,4 +42,7 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	bool bAiming;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	FRotator OffsetAxis;
 };

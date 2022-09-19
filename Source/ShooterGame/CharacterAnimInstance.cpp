@@ -31,6 +31,8 @@ void UCharacterAnimInstance::UpdateAnimationProperties(float DeltaTime)
 		
 		FRotator MovementRotation = UKismetMathLibrary::MakeRotFromX(CharacterController->GetVelocity());
 
+		OffsetAxis = UKismetMathLibrary::NormalizedDeltaRotator(CharacterController->GetControlRotation(), CharacterController->GetActorRotation());
+
 		MovementOffsetYaw = UKismetMathLibrary::NormalizedDeltaRotator(
 			MovementRotation, AimRotation).Yaw;
 		
@@ -49,3 +51,7 @@ void UCharacterAnimInstance::NativeInitializeAnimation()
 
 }
 
+FRotator UCharacterAnimInstance::GetOffsetAxis()
+{
+	return OffsetAxis;
+}
